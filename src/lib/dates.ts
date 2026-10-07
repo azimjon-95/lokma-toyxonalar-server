@@ -1,7 +1,8 @@
 import { env } from '../config/env.js';
 
-export type SessionCode = 'morning' | 'day' | 'evening';
-export const SESSION_ORDER: SessionCode[] = ['morning', 'day', 'evening'];
+export type SessionCode = 'morning' | 'day' | 'evening' | 'special';
+/** Kalendar tartibi — maxsus tadbir oxirida (lib/sessions.ts) */
+export const SESSION_ORDER: SessionCode[] = ['morning', 'day', 'evening', 'special'];
 /** Bo'sh seans qidirilganda ustuvorlik (to'ylar asosan kechqurun) */
 export const SESSION_PREFERENCE: SessionCode[] = ['evening', 'day', 'morning'];
 

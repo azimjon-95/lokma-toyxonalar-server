@@ -1,3 +1,4 @@
+import type { EventTypeAll } from '../../lib/sessions.js';
 import { randomInt } from 'node:crypto';
 import { Types } from 'mongoose';
 import { BookingModel } from './booking.model.js';
@@ -8,7 +9,7 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/http-error.
 import { logger } from '../../infrastructure/logger.js';
 
 export interface BookingInput extends QuoteInput {
-  event_type: 'nahorgi_osh' | 'nikoh' | 'kunduzgi' | 'kechki';
+  event_type: EventTypeAll;
   customer_name: string;
   customer_phone: string;
 }

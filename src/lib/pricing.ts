@@ -1,6 +1,6 @@
 // Narx formulasi — mobil ilovadagi src/services/pricing.ts bilan bir xil bo'lishi SHART.
 export interface PricedMenu { price_per_guest: number }
-export interface PricedSession { price_factor: number }
+export interface PricedSession { price_factor: number; pricing_mode?: string | null }
 
 export const roundTo1000 = (n: number) => Math.round(n / 1000) * 1000;
 
@@ -9,6 +9,8 @@ export function pricePerGuest(menu: PricedMenu, session: PricedSession, weekend:
 }
 
 export function priceRange(menus: PricedMenu[], sessions: PricedSession[], weekendFactor: number) {
+  // Faqat mehmon boshiga hisoblanadigan seanslar (aniq/kelishiladigan narx oraliqqa kirmaydi)
+  sessions = sessions.filter((s) => !s.pricing_mode || s.pricing_mode === 'per_guest');
   if (!menus.length || !sessions.length) return { from: 0, to: 0 };
   const prices = menus.map((m) => m.price_per_guest);
   const factors = sessions.map((s) => s.price_factor);

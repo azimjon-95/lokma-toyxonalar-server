@@ -1,3 +1,4 @@
+import { SESSION_CODES, EVENT_TYPES, PRICING_MODES } from '../../lib/sessions.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { lat, lng, objectId, parse } from '../../lib/validate.js';
@@ -11,7 +12,7 @@ export const venueRouter = Router();
 export const hallRouter = Router();
 
 const radius = z.coerce.number().min(1).max(100).default(20);
-const eventType = z.enum(['nahorgi_osh', 'nikoh', 'kunduzgi', 'kechki']);
+const eventType = z.enum(EVENT_TYPES);
 
 venueRouter.get('/', async (req, res) => {
   const q = parse(

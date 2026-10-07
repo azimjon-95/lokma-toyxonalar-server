@@ -23,6 +23,10 @@ export async function buildQuote(input: QuoteInput) {
   if (!hall) throw badRequest('Zal topilmadi');
   const session = venue.sessions.find((s) => s.code === input.session);
   if (!session) throw badRequest('Bu to‘yxonada bunday seans yo‘q');
+  // Narx kelishiladigan seans (konsert, shou, majlis...) — onlayn bron yo'q
+  if (session.pricing_mode === 'negotiable') {
+    throw badRequest('Bu seans narxi kelishiladi — to‘yxona bilan bog‘laning', { code: 'negotiable', phone: venue.phone });
+  }
   const menu = venue.menu_packages.find((m) => String(m._id) === input.menu_package_id);
   if (!menu) throw badRequest('Menyu paketi topilmadi');
 
@@ -46,8 +50,13 @@ export async function buildQuote(input: QuoteInput) {
   const types = vendors.map((v) => v.type);
   if (new Set(types).size !== types.length) throw badRequest('Har bir xizmat turidan bittadan tanlash mumkin');
 
-  const ppg = pricePerGuest(menu, session, isWeekendISO(input.date), venue.weekend_factor);
-  const venue_total = ppg * input.guests;
+  /*
+   * per_guest — menyu × koeffitsient × mehmonlar (dam olish kuni ×);
+   * fixed     — seansning aniq narxi, mehmon soniga bog'liq emas.
+   */
+  const fixed = session.pricing_mode === 'fixed';
+  const ppg = fixed ? 0 : pricePerGuest(menu, session, isWeekendISO(input.date), venue.weekend_factor);
+  const venue_total = fixed ? (session.fixed_price ?? 0) : ppg * input.guests;
   const extras = vendors.map((v) => ({ vendor_id: v.id, name: v.name, type: v.type, price: v.price }));
   const total = venue_total + extras.reduce((s, e) => s + e.price, 0);
 

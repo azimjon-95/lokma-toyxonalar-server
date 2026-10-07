@@ -1,3 +1,4 @@
+import type { EventTypeAll } from '../../lib/sessions.js';
 import { Types } from 'mongoose';
 import { VenueModel, type Venue } from './venue.model.js';
 import { VendorModel } from '../vendors/vendor.model.js';
@@ -12,7 +13,7 @@ type LeanVenue = Venue & { _id: Types.ObjectId };
 
 export type QuickFilter = 'all' | 'free_today' | 'cheap' | 'big' | 'parking';
 export type SortKey = 'distance' | 'price_asc' | 'price_desc' | 'rating';
-export type EventType = 'nahorgi_osh' | 'nikoh' | 'kunduzgi' | 'kechki';
+export type EventType = EventTypeAll;
 
 export interface VenueQuery extends LatLng {
   radius_km: number;
@@ -27,7 +28,8 @@ const hallIds = (v: LeanVenue) => v.halls.map((h) => String(h._id));
 function sessionsFor(v: LeanVenue, eventType?: EventType): SessionCode[] {
   return SESSION_PREFERENCE.filter((code) => {
     const s = v.sessions.find((x) => x.code === code);
-    return s && (!eventType || s.event_types.includes(eventType));
+    // Narxi kelishiladigan seans "keyingi bo'sh kun" qidiruviga kirmaydi (onlayn bron yo'q)
+    return s && s.pricing_mode !== 'negotiable' && (!eventType || s.event_types.includes(eventType));
   });
 }
 

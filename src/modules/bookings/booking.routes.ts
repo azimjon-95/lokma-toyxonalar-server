@@ -1,3 +1,4 @@
+import { SESSION_CODES, EVENT_TYPES, PRICING_MODES } from '../../lib/sessions.js';
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
@@ -13,14 +14,14 @@ const quoteSchema = z.object({
   venue_id: z.string().min(1).max(100),
   hall_id: objectId,
   date: z.string().regex(ISO_DATE, 'Format: YYYY-MM-DD'),
-  session: z.enum(['morning', 'day', 'evening']),
+  session: z.enum(SESSION_CODES),
   guests: z.coerce.number().int().min(1).max(5000),
   menu_package_id: objectId,
   vendor_ids: z.array(objectId).max(5).default([]),
 });
 
 const bookingSchema = quoteSchema.extend({
-  event_type: z.enum(['nahorgi_osh', 'nikoh', 'kunduzgi', 'kechki']),
+  event_type: z.enum(EVENT_TYPES),
   customer_name: z.string().trim().min(2, 'Ismni kiriting').max(80),
   customer_phone: z
     .string()

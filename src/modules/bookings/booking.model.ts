@@ -1,3 +1,4 @@
+import { SESSION_CODES, EVENT_TYPES } from '../../lib/sessions.js';
 import { Schema, model, type InferSchemaType } from 'mongoose';
 
 const bookingSchema = new Schema(
@@ -13,8 +14,8 @@ const bookingSchema = new Schema(
     hall_id: { type: Schema.Types.ObjectId, required: true },
     hall_name: { type: String, required: true },
     date: { type: String, required: true },
-    session: { type: String, enum: ['morning', 'day', 'evening'], required: true },
-    event_type: { type: String, enum: ['nahorgi_osh', 'nikoh', 'kunduzgi', 'kechki'], required: true },
+    session: { type: String, enum: SESSION_CODES, required: true },
+    event_type: { type: String, enum: EVENT_TYPES, required: true },
     guests: { type: Number, required: true, min: 1 },
     menu: { id: String, name: String, price_per_guest: Number },
     extras: [{ vendor_id: String, name: String, type: { type: String }, price: Number, _id: false }],

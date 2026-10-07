@@ -1,3 +1,4 @@
+import { SESSION_CODES, EVENT_TYPES, PRICING_MODES } from '../../lib/sessions.js';
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
@@ -17,7 +18,7 @@ import { todayISO } from '../../lib/dates.js';
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
 
-const eventType = z.enum(['nahorgi_osh', 'nikoh', 'kunduzgi', 'kechki']);
+const eventType = z.enum(EVENT_TYPES);
 const venueSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string().min(2),
@@ -34,13 +35,20 @@ const venueSchema = z.object({
   amenities: z.array(z.string()).default([]),
   halls: z.array(z.object({ name: z.string(), capacity_min: z.number().int().positive(), capacity_max: z.number().int().positive() })).min(1),
   sessions: z.array(z.object({
-    code: z.enum(['morning', 'day', 'evening']),
+    code: z.enum(SESSION_CODES),
     start_time: z.string().regex(/^\d{2}:\d{2}$/),
     end_time: z.string().regex(/^\d{2}:\d{2}$/),
     event_types: z.array(eventType).min(1),
     price_factor: z.number().positive(),
     min_guests: z.number().int().positive(),
-  })).min(1),
+    pricing_mode: z.enum(PRICING_MODES).default('per_guest'),
+    fixed_price: z.number().int().nonnegative().default(0),
+    note: z.string().max(200).default(''),
+  })
+    // Aniq narx tanlansa — narx kiritilishi shart
+    .refine((s) => s.pricing_mode !== 'fixed' || s.fixed_price > 0, { message: 'Aniq narxni kiriting', path: ['fixed_price'] }))
+    .min(1)
+    .refine((list) => new Set(list.map((s) => s.code)).size === list.length, { message: 'Seanslar takrorlanmasin' }),
   menu_packages: z.array(z.object({ name: z.string(), items_text: z.string().default(''), price_per_guest: z.number().int().nonnegative() })).min(1),
   weekend_factor: z.number().min(1).max(3).default(1.15),
   deposit_percent: z.number().min(0).max(100).default(30),
@@ -310,7 +318,7 @@ adminRouter.put('/slots', async (req, res) => {
     z.object({
       hall_id: objectId,
       date: z.string().regex(ISO_DATE),
-      session: z.enum(['morning', 'day', 'evening']),
+      session: z.enum(SESSION_CODES),
       status: z.enum(['closed', 'booked', 'free']),
       note: z.string().max(200).optional(),
     }),

@@ -1,3 +1,4 @@
+import { SESSION_CODES, EVENT_TYPES, PRICING_MODES } from '../../lib/sessions.js';
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
 
 const hallSchema = new Schema(
@@ -11,12 +12,18 @@ const hallSchema = new Schema(
 
 const sessionSchema = new Schema(
   {
-    code: { type: String, enum: ['morning', 'day', 'evening'], required: true },
+    code: { type: String, enum: SESSION_CODES, required: true },
     start_time: { type: String, required: true, match: /^\d{2}:\d{2}$/ },
     end_time: { type: String, required: true, match: /^\d{2}:\d{2}$/ },
-    event_types: [{ type: String, enum: ['nahorgi_osh', 'nikoh', 'kunduzgi', 'kechki'] }],
+    event_types: [{ type: String, enum: EVENT_TYPES }],
     price_factor: { type: Number, required: true, min: 0.1, max: 5 },
     min_guests: { type: Number, default: 100, min: 1 },
+    /** Narx turi (lib/sessions.ts): per_guest | fixed | negotiable */
+    pricing_mode: { type: String, enum: PRICING_MODES, default: 'per_guest' },
+    /** pricing_mode='fixed' — seansning aniq narxi (so'm) */
+    fixed_price: { type: Number, default: 0, min: 0 },
+    /** Ilovada ko'rinadigan qisqa izoh: "Konsert, shou, majlislar — narx kelishiladi" */
+    note: { type: String, default: '' },
   },
   { _id: false },
 );

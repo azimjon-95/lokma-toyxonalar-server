@@ -149,10 +149,16 @@ export async function confirmBooking(id: string) {
   return toPublic({ ...b, status: 'confirmed' });
 }
 
-export async function adminListBookings(f: { status?: string; date?: string; venue_id?: string; limit: number }) {
+export async function adminListBookings(f: { status?: string; date?: string; from?: string; to?: string; venue_id?: string; q?: string; limit: number }) {
   const q: Record<string, unknown> = {};
   if (f.status) q.status = f.status;
   if (f.date) q.date = f.date;
+  else if (f.from || f.to) q.date = { ...(f.from ? { $gte: f.from } : {}), ...(f.to ? { $lte: f.to } : {}) };
+  if (f.q?.trim()) {
+    const term = f.q.trim().slice(0, 60);
+    const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    q.$or = [{ number: rx }, { customer_name: rx }, { customer_phone: rx }, { venue_name: rx }];
+  }
   if (f.venue_id && Types.ObjectId.isValid(f.venue_id)) q.venue_id = f.venue_id;
   const rows = (await BookingModel.find(q).sort({ createdAt: -1 }).limit(f.limit).lean()).map(asDoc);
   return rows.map((b) => ({ ...toPublic(b), customer_name: b.customer_name, customer_phone: b.customer_phone }));

@@ -51,7 +51,36 @@ const venueSchema = new Schema(
     weekend_factor: { type: Number, default: 1.15, min: 1, max: 3 },
     deposit_percent: { type: Number, default: 30, min: 0, max: 100 },
     guests_min: { type: Number, default: 150, min: 1 },
-    status: { type: String, enum: ['active', 'hidden'], default: 'active', index: true },
+    /*
+     * active  — mijozlarga ko'rinadi
+     * hidden  — vaqtincha yashirin (egasi so'radi, tayyor emas)
+     * blocked — admin bloklagan (to'lov qilinmagan, qoidabuzarlik) — sababi block_reason
+     * Ommaviy API faqat 'active' ni beradi (venue.service.ts).
+     */
+    status: { type: String, enum: ['active', 'hidden', 'blocked'], default: 'active', index: true },
+    block_reason: { type: String, default: '' },
+    blocked_at: { type: Date, default: null },
+
+    /* Egasi / mas'ul shaxs — admin uchun (mijozga ko'rsatilmaydi) */
+    owner: {
+      name: { type: String, default: '' },
+      phone: { type: String, default: '' },
+      telegram: { type: String, default: '' },
+      note: { type: String, default: '' },
+    },
+
+    /*
+     * OYLIK TO'LOV (platformaga obuna).
+     *   monthly_fee — oyiga necha so'm
+     *   paid_until  — to'langan oxirgi kun (YYYY-MM-DD, Toshkent). To'lovlar
+     *                 (payment.model.ts) asosida avtomatik qayta hisoblanadi.
+     *   billing_start — hisob qaysi oydan boshlanadi (YYYY-MM)
+     */
+    subscription: {
+      monthly_fee: { type: Number, default: 0, min: 0 },
+      paid_until: { type: String, default: '' },
+      billing_start: { type: String, default: '' },
+    },
   },
   { timestamps: true },
 );

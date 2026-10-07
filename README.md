@@ -61,6 +61,22 @@ To'liq shartnoma: ilova reposidagi `docs/API.md`. Qisqacha:
 `PUT /api/admin/slots` (seansni yopish/ochish),
 `GET /api/admin/bookings?status&date&venue_id`, `POST /api/admin/bookings/:id/confirm|cancel`.
 
+**Admin — to'liq boshqaruv (LokmaGo admin paneli orqali ishlatiladi):**
+
+| Metod | Yo'l | |
+|---|---|---|
+| GET | `/api/admin/stats` | boshqaruv raqamlari (to'yxonalar, obuna qarzi, bronlar, xizmatlar) |
+| GET | `/api/admin/venues?status&q` · `/api/admin/venues/:id` | ro'yxat/bitta — `subscription_state` bilan |
+| POST | `/api/admin/venues/:id/block` `{reason}` · `/unblock` | bloklash (mijozga ko'rinmaydi, bron qabul qilinmaydi) |
+| GET | `/api/admin/subscriptions` | oylik to'lov nazorati (qarzdorlar birinchi) |
+| GET/POST | `/api/admin/payments` · DELETE `/api/admin/payments/:id` | oylik to'lovlar; `paid_until` avtomatik qayta hisoblanadi |
+| GET | `/api/admin/vendors?type=video\|cortege` · `/api/admin/vendors/:id` | videochi/kamerachi, kortej |
+| POST | `/api/admin/vendors/:id/block` · `/unblock` · DELETE | bloklash; bronlarda ishlatilgan bo'lsa o'chirilmaydi (409) |
+| GET | `/api/admin/bookings?status&from&to&q&venue_id` | bronlarni kuzatish |
+
+LokmaGo admin paneli bu API'ga **to'g'ridan-to'g'ri emas**, lokmago-server orqali ulanadi
+(`/api/admin/wedding/*` → shu server, `X-Admin-Key` brauzerga chiqmaydi).
+
 ## Muhim qoidalar
 
 - **Bitta seans — bitta bron.** `slots` kolleksiyasida `(hall_id, date, session)` unique indeks:

@@ -14,6 +14,7 @@ import {
   PAY_METHODS, INCOME_CATEGORIES, EXPENSE_CATEGORIES,
 } from './owner.models.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { cancelBookingByPhone, listBookingsByPhone } from '../bookings/booking.service.js';
 
 /*
  * ═══ TO'YXONA EGASI — CRM API ═══
@@ -46,6 +47,17 @@ internalRouter.post('/owner-login', async (req, res) => {
   acc.last_login_at = new Date();
   await acc.save();
   res.json({ venue_id: String(venue._id), venue_name: venue.name, login: acc.login });
+});
+
+/* ── Ichki: Lokma foydalanuvchisining bronlari (telefon bo'yicha; lakmago-server chaqiradi) ── */
+internalRouter.get('/my-bookings', async (req, res) => {
+  const { phone } = parse(z.object({ phone: z.string().min(9).max(20) }), req.query);
+  res.json(await listBookingsByPhone(phone));
+});
+internalRouter.post('/my-bookings/:id/cancel', async (req, res) => {
+  const { id } = parse(z.object({ id: objectId }), req.params);
+  const { phone } = parse(z.object({ phone: z.string().min(9).max(20) }), req.body ?? {});
+  res.json(await cancelBookingByPhone(id, phone));
 });
 
 /* ── Egasi API: kalit + to'yxona ── */

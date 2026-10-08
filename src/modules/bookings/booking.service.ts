@@ -164,3 +164,36 @@ export async function adminListBookings(f: { status?: string; date?: string; fro
   const rows = (await BookingModel.find(q).sort({ createdAt: -1 }).limit(f.limit).lean()).map(asDoc);
   return rows.map((b) => ({ ...toPublic(b), customer_name: b.customer_name, customer_phone: b.customer_phone }));
 }
+
+
+/*
+ * ═══ LOKMA FOYDALANUVCHISINING BRONLARI (telefon bo'yicha) ═══
+ * Mijoz alohida ro'yxatdan o'tmaydi — Lokma Go orqali keladi. Bron telefon
+ * raqami bilan saqlangani uchun, Lokma serveri (ishonchli, X-Admin-Key bilan)
+ * tizimga kirgan foydalanuvchining O'Z telefonini yuboradi va shu raqamdagi
+ * bronlarni oladi. Eski va yangi yozuvlar turli formatda (+998 90 123 45 67 /
+ * +998901234567) bo'lgani uchun oxirgi 9 raqam bo'yicha moslanadi.
+ */
+export const phoneTail = (v: string) => String(v || '').replace(/\D/g, '').slice(-9);
+
+function phoneRegex(tail: string) {
+  // 9 ta raqam orasida ixtiyoriy belgilar (bo'sh joy, tire) bo'lishi mumkin, qator oxirigacha
+  return new RegExp(`${tail.split('').join('\\D*')}\\D*$`);
+}
+
+export async function listBookingsByPhone(phone: string) {
+  const tail = phoneTail(phone);
+  if (tail.length !== 9) return [];
+  const rows = (await BookingModel.find({ customer_phone: phoneRegex(tail) }).sort({ createdAt: -1 }).limit(100).lean()).map(asDoc);
+  return rows
+    .filter((b) => phoneTail(b.customer_phone) === tail) // regex tasodifiy mos kelishidan himoya
+    .map((b) => toPublic(b));
+}
+
+/** Foydalanuvchi o'z bronini bekor qiladi: bron telefoni uning telefoniga mos bo'lishi shart */
+export async function cancelBookingByPhone(id: string, phone: string) {
+  const b = await load(id);
+  const tail = phoneTail(phone);
+  if (tail.length !== 9 || phoneTail(b.customer_phone) !== tail) throw forbidden();
+  return cancelBooking(id, { admin: true }, 'customer');
+}

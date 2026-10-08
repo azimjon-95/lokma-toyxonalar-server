@@ -11,7 +11,8 @@ import { hallCalendar } from '../slots/slot.service.js';
 export const venueRouter = Router();
 export const hallRouter = Router();
 
-const radius = z.coerce.number().min(1).max(100).default(20);
+// 1000 km — "Butun O'zbekiston" tanlovi (wedding ilovasi, src/lib/regions.ts)
+const radius = z.coerce.number().min(1).max(1000).default(20);
 const eventType = z.enum(EVENT_TYPES);
 
 venueRouter.get('/', async (req, res) => {

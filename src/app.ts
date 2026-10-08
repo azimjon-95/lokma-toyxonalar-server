@@ -12,6 +12,7 @@ import { quoteRouter, bookingRouter, meRouter } from './modules/bookings/booking
 import { authRouter } from './modules/auth/auth.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
+import { ownerRouter, internalRouter } from './modules/owner/owner.routes.js';
 
 export function createApp() {
   const app = express();
@@ -35,7 +36,13 @@ export function createApp() {
   app.use('/api/health', healthRouter);
   app.use(
     '/api',
-    rateLimit({ windowMs: 60_000, limit: env.API_RATE_LIMIT, standardHeaders: 'draft-8', legacyHeaders: false, message: { message: 'Juda ko‘p so‘rov', code: 'rate_limited' } }),
+    rateLimit({
+      windowMs: 60_000, limit: env.API_RATE_LIMIT, standardHeaders: 'draft-8', legacyHeaders: false,
+      message: { message: 'Juda ko‘p so‘rov', code: 'rate_limited' },
+      // lakmago-server orqali (admin + barcha to'yxona egalari bitta IP dan) — umumiy limitga kirmaydi.
+      // Kalit noto'g'ri bo'lsa baribir requireAdmin rad etadi.
+      skip: (req) => Boolean(env.ADMIN_API_KEY) && req.headers['x-admin-key'] === env.ADMIN_API_KEY,
+    }),
   );
   app.use('/api/auth', authRouter);
   app.use('/api/venues', venueRouter);
@@ -44,6 +51,9 @@ export function createApp() {
   app.use('/api/bookings', bookingRouter);
   app.use('/api/me', meRouter);
   app.use('/api/admin', adminRouter);
+  // To'yxona egasi CRM va ichki login — faqat lakmago-server orqali (X-Admin-Key)
+  app.use('/api/owner', ownerRouter);
+  app.use('/api/internal', internalRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ message: 'Endpoint topilmadi', code: 'not_found' });

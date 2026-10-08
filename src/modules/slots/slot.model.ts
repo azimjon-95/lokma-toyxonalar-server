@@ -12,6 +12,8 @@ const slotSchema = new Schema(
     status: { type: String, enum: ['hold', 'booked', 'closed'], required: true },
     hold_until: { type: Date },
     booking_id: { type: Schema.Types.ObjectId, ref: 'Booking' },
+    /** To'yxona egasi kalendarda qo'lda band qilgan bo'lsa (owner/Reservation) */
+    reservation_id: { type: Schema.Types.ObjectId, ref: 'Reservation' },
     note: { type: String },
   },
   { timestamps: true },

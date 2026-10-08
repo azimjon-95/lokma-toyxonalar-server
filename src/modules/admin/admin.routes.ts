@@ -14,6 +14,8 @@ import { BookingModel } from '../bookings/booking.model.js';
 import { PaymentModel } from '../payments/payment.model.js';
 import { recalcPaidUntil, subscriptionState } from '../payments/payment.service.js';
 import { todayISO } from '../../lib/dates.js';
+import { VenueAccountModel } from '../owner/owner.models.js';
+import { hashPassword } from '../owner/password.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
@@ -353,4 +355,31 @@ adminRouter.post('/bookings/:id/cancel', async (req, res) => {
   const { id } = parse(z.object({ id: objectId }), req.params);
   const { reason } = parse(z.object({ reason: z.string().max(200).default('admin') }), req.body ?? {});
   res.json(await cancelBooking(id, { admin: true }, reason));
+});
+
+
+/* ═══ TO'YXONA EGASI AKKAUNTI (LokmaGo admin paneli login sahifasi orqali kiradi) ═══ */
+adminRouter.get('/venues/:id/account', async (req, res) => {
+  const { id } = parse(z.object({ id: objectId }), req.params);
+  const a = await VenueAccountModel.findOne({ venue_id: id }, { login: 1, active: 1, last_login_at: 1, createdAt: 1 }).lean();
+  res.json(a || null);
+});
+adminRouter.put('/venues/:id/account', async (req, res) => {
+  const { id } = parse(z.object({ id: objectId }), req.params);
+  const b = parse(z.object({
+    login: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/i, 'Login: lotin harf, raqam, . _ -'),
+    password: z.string().min(6).max(100).optional(),
+    active: z.boolean().default(true),
+  }), req.body);
+  const venue = await VenueModel.exists({ _id: id });
+  if (!venue) throw notFound('To‘yxona topilmadi');
+  const existing = await VenueAccountModel.findOne({ venue_id: id });
+  if (!existing && !b.password) {
+    res.status(422).json({ message: 'Yangi akkaunt uchun parol kiriting', code: 'validation' });
+    return;
+  }
+  const $set: Record<string, unknown> = { login: b.login.toLowerCase(), active: b.active };
+  if (b.password) $set.password_hash = await hashPassword(b.password);
+  const a = await VenueAccountModel.findOneAndUpdate({ venue_id: id }, { $set, $setOnInsert: { venue_id: id } }, { upsert: true, returnDocument: 'after' }).lean();
+  res.json({ login: a!.login, active: a!.active, last_login_at: a!.last_login_at ?? null });
 });

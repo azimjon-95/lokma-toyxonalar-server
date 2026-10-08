@@ -20,8 +20,13 @@ export function createApp() {
   app.set('trust proxy', 1); // nginx / load balancer ortida
 
   app.use(helmet());
-  const origins = env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
-  app.use(cors({ origin: origins.length ? origins : !isProd, credentials: false }));
+  /*
+   * Mijoz sayti (wedding.lokma.uz) DOIM ruxsat etilgan: .env'da CORS_ORIGINS
+   * bo'sh yoki unutilgan bo'lsa ham sayt (va Lokma Go ichidagi iframe) ishlaydi —
+   * aks holda brauzer so'rovni to'sadi va mijoz "Internetga ulanib bo'lmadi" ko'radi.
+   */
+  const origins = [...new Set(['https://wedding.lokma.uz', ...env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)])];
+  app.use(cors({ origin: isProd ? origins : true, credentials: false }));
   app.use(compression());
   app.use(express.json({ limit: '200kb' }));
 

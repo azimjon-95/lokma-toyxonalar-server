@@ -28,11 +28,31 @@ const sessionSchema = new Schema(
   { _id: false },
 );
 
+/** Cloudinary rasmi (cloudinary.service.ts). external=true — eski, Cloudinary'dan tashqari URL */
+const imageAssetSchema = new Schema(
+  {
+    public_id: { type: String, default: '' },
+    url: { type: String, default: '' },
+    version: { type: Number },
+    width: { type: Number },
+    height: { type: Number },
+    bytes: { type: Number },
+    format: { type: String },
+  },
+  { _id: true, timestamps: false },
+);
+
 const menuSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
+    /** Taomlar ro'yxati matni — mijoz ilovasi shuni ko'rsatadi; dishes o'zgarganda avtomatik yig'iladi */
     items_text: { type: String, default: '' },
     price_per_guest: { type: Number, required: true, min: 0 },
+    /** Paket uchun minimal mehmon soni (0 = cheklov yo'q). Onlayn bronda ham tekshiriladi. */
+    min_guests: { type: Number, default: 0, min: 0 },
+    /** Tarkibidagi taomlar (Dish._id), tartib bilan */
+    dishes: [{ type: Schema.Types.ObjectId, ref: 'Dish' }],
+    photo: { type: imageAssetSchema, default: undefined },
   },
   { _id: true },
 );
@@ -49,7 +69,10 @@ const venueSchema = new Schema(
     lng: { type: Number, required: true, min: -180, max: 180 },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     reviews_count: { type: Number, default: 0, min: 0 },
+    /** Mijoz ilovasi o'qiydigan tayyor URL'lar — photo_assets'dan avtomatik yig'iladi */
     photos: [{ type: String }],
+    /** Egasi boshqaradigan rasmlar (tartib = galereya tartibi, birinchisi — muqova) */
+    photo_assets: { type: [imageAssetSchema], default: [] },
     parking_spots: { type: Number, default: 0, min: 0 },
     amenities: [{ type: String }],
     halls: { type: [hallSchema], validate: [(v: unknown[]) => v.length > 0, 'Kamida bitta zal kerak'] },

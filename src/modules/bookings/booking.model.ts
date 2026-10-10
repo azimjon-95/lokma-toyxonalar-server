@@ -26,6 +26,22 @@ const bookingSchema = new Schema(
     payment_url: { type: String, default: null },
     paid_at: { type: Date },
     hold_until: { type: Date, required: true },
+    /* To'yxona egasi ilovasidan kiritiladi: qabul qilingan to'lovlar, ishchilar, izoh */
+    payments: [
+      new Schema(
+        {
+          amount: { type: Number, required: true, min: 1 },
+          method: { type: String, enum: ['cash', 'card', 'transfer', 'click', 'payme', 'other'], default: 'cash' },
+          kind: { type: String, enum: ['deposit', 'payment', 'refund'], default: 'deposit' },
+          date: { type: String, required: true },
+          note: { type: String, default: '' },
+          at: { type: Date, default: () => new Date() },
+        },
+        { _id: true, timestamps: false },
+      ),
+    ],
+    staff_ids: [{ type: Schema.Types.ObjectId }],
+    notes: { type: String, default: '' },
   },
   { timestamps: true },
 );

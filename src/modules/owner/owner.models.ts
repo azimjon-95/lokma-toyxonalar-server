@@ -15,6 +15,13 @@ const accountSchema = new Schema(
     password_hash: { type: String, required: true },
     active: { type: Boolean, default: true },
     last_login_at: { type: Date },
+    /* Mobil ilova (lokma-toyxona-owner): telefon + parol bilan kiradi. E.164: +998XXXXXXXXX.
+     * Bir telefon bitta hisobga tegishli — admin/ilova xizmatlari tekshiradi. */
+    phone: { type: String, default: '', index: true },
+    name: { type: String, default: '', trim: true },
+    /** Parol almashganda/hisob o'chirilganda oshadi — eski tokenlar darhol bekor bo'ladi */
+    token_version: { type: Number, default: 0 },
+    deleted_at: { type: Date },
   },
   { timestamps: true },
 );
@@ -26,8 +33,7 @@ export const PAY_METHODS = ['cash', 'card', 'transfer', 'click', 'payme', 'other
  * Egasi kalendarda band qilgan seans (telefon orqali kelgan mijoz, maxsus tadbir...).
  * Slot bilan sinxron: yaratilganda seans band bo'ladi — ilovada ham "band" ko'rinadi.
  */
-const reservationSchema = new Schema(
-  {
+const reservationFields = {
     venue_id: { type: Schema.Types.ObjectId, ref: 'Venue', required: true, index: true },
     hall_id: { type: Schema.Types.ObjectId, required: true },
     hall_name: { type: String, default: '' },
@@ -35,6 +41,20 @@ const reservationSchema = new Schema(
     session: { type: String, enum: SESSION_CODES, required: true },
     /** booked — tasdiqlangan; tentative — kelishilmoqda (vaqtincha ushlab turiladi); closed — yopiq (ta'mir va h.k.) */
     status: { type: String, enum: ['booked', 'tentative', 'closed'], default: 'booked' },
+    /*
+     * Egasi ilovasidagi bron bosqichi: pending (Yangi) → deposit (zakalat kutilmoqda) →
+     * confirmed (tasdiqlangan) → completed (yakunlangan). Bekor qilingani arxivga o'tadi.
+     * `status` bilan sinxron: pending ↔ tentative, qolganlari ↔ booked.
+     */
+    stage: { type: String, enum: ['pending', 'deposit', 'confirmed', 'completed'] },
+    menu_id: { type: String, default: '' },
+    menu_name: { type: String, default: '' },
+    /** Seans shabloni vaqtidan farq qilsa (masalan maxsus tadbir): HH:mm */
+    start_time: { type: String, default: '' },
+    end_time: { type: String, default: '' },
+    address: { type: String, default: '' },
+    /** Biriktirilgan ishchilar (Employee._id) */
+    staff_ids: [{ type: Schema.Types.ObjectId }],
     event_type: { type: String, enum: EVENT_TYPES },
     customer_name: { type: String, default: '', trim: true },
     customer_phone: { type: String, default: '', trim: true },
@@ -52,18 +72,35 @@ const reservationSchema = new Schema(
           kind: { type: String, enum: ['deposit', 'payment', 'refund'], default: 'deposit' },
           date: { type: String, required: true },
           note: { type: String, default: '' },
+          /** To'lov qabul qilingan aniq vaqt (ilovada "09:20" ko'rsatiladi) */
+          at: { type: Date, default: () => new Date() },
         },
         { _id: true, timestamps: false },
       ),
     ],
     description: { type: String, default: '' },
-  },
-  { timestamps: true },
-);
+};
+const reservationSchema = new Schema(reservationFields, { timestamps: true });
 reservationSchema.index({ hall_id: 1, date: 1, session: 1 }, { unique: true });
 reservationSchema.index({ venue_id: 1, date: 1 });
 reservationSchema.index({ venue_id: 1, 'payments.date': 1 });
 export const ReservationModel = model('Reservation', reservationSchema);
+
+/*
+ * Bekor qilingan egasi bronlari (tarix, mijozlar ro'yxati, hisobotlar uchun).
+ * Asosiy kolleksiyadagi (hall, date, session) unique indeks bir seansga ikkinchi yozuvni
+ * yo'l qo'ymaydi, shuning uchun bekor qilinganda yozuv shu yerga ko'chadi va seans bo'shaydi.
+ */
+const cancelledReservationSchema = new Schema(
+  {
+    ...reservationFields,
+    cancelled_at: { type: Date, default: () => new Date() },
+    cancel_reason: { type: String, default: '' },
+  },
+  { timestamps: true },
+);
+cancelledReservationSchema.index({ venue_id: 1, date: -1 });
+export const CancelledReservationModel = model('CancelledReservation', cancelledReservationSchema);
 
 /** Kirim-chiqim (to'lovlardan tashqari): xarajatlar, soliq, kredit, ish haqi, boshqa kirim */
 export const INCOME_CATEGORIES = ['bron', 'xizmat', 'ijara', 'boshqa_kirim'] as const;
@@ -99,6 +136,12 @@ const employeeSchema = new Schema(
     hired_at: { type: String, default: '' },
     note: { type: String, default: '' },
     active: { type: Boolean, default: true },
+    /* Mobil ilovaga kirish (rol: xodim). Kirish telefoni E.164; parol — scrypt hash. */
+    app_access: { type: Boolean, default: false },
+    app_phone: { type: String, default: '', index: true },
+    password_hash: { type: String, default: '' },
+    token_version: { type: Number, default: 0 },
+    last_login_at: { type: Date },
   },
   { timestamps: true },
 );

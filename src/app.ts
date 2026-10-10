@@ -13,6 +13,7 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { healthRouter } from './modules/health/health.routes.js';
 import { ownerRouter, internalRouter } from './modules/owner/owner.routes.js';
+import { ownerAppRouter } from './modules/owner-app/owner-app.routes.js';
 
 export function createApp() {
   const app = express();
@@ -57,6 +58,8 @@ export function createApp() {
   app.use('/api/me', meRouter);
   app.use('/api/admin', adminRouter);
   // To'yxona egasi CRM va ichki login — faqat lakmago-server orqali (X-Admin-Key)
+  // To'yxona egasi / xodim mobil ilovasi (token bilan, to'g'ridan-to'g'ri)
+  app.use('/api/owner-app', ownerAppRouter);
   app.use('/api/owner', ownerRouter);
   app.use('/api/internal', internalRouter);
 

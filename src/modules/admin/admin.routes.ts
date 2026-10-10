@@ -16,6 +16,8 @@ import { recalcPaidUntil, subscriptionState } from '../payments/payment.service.
 import { todayISO } from '../../lib/dates.js';
 import { VenueAccountModel } from '../owner/owner.models.js';
 import { hashPassword } from '../owner/password.js';
+import { normalizePhone } from '../../lib/phone.js';
+import { VenueApplicationModel } from '../owner-app/owner-app.models.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
@@ -370,7 +372,21 @@ adminRouter.put('/venues/:id/account', async (req, res) => {
     login: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/i, 'Login: lotin harf, raqam, . _ -'),
     password: z.string().min(6).max(100).optional(),
     active: z.boolean().default(true),
+    /** Mobil ilovaga kirish: telefon (+998...) va ism. Bir telefon — bitta hisob. */
+    phone: z.string().max(20).optional(),
+    name: z.string().max(80).optional(),
   }), req.body);
+  let phone: string | undefined;
+  if (b.phone !== undefined) {
+    if (b.phone === '') phone = '';
+    else {
+      const n = normalizePhone(b.phone);
+      if (!n) { res.status(422).json({ message: 'Telefon raqam noto‘g‘ri', code: 'validation' }); return; }
+      const taken = await VenueAccountModel.exists({ phone: n, venue_id: { $ne: id } });
+      if (taken) { res.status(409).json({ message: 'Bu telefon boshqa to‘yxona hisobida', code: 'duplicate_phone' }); return; }
+      phone = n;
+    }
+  }
   const venue = await VenueModel.exists({ _id: id });
   if (!venue) throw notFound('To‘yxona topilmadi');
   const existing = await VenueAccountModel.findOne({ venue_id: id });
@@ -379,7 +395,25 @@ adminRouter.put('/venues/:id/account', async (req, res) => {
     return;
   }
   const $set: Record<string, unknown> = { login: b.login.toLowerCase(), active: b.active };
+  if (phone !== undefined) $set.phone = phone;
+  if (b.name !== undefined) $set.name = b.name;
+  if (b.active) $set.deleted_at = null; // admin qayta yoqsa — o'chirilgan hisob tiklanadi
   if (b.password) $set.password_hash = await hashPassword(b.password);
+  if (b.password) $set.token_version = ((existing?.token_version as number | undefined) ?? 0) + 1; // eski sessiyalar bekor
   const a = await VenueAccountModel.findOneAndUpdate({ venue_id: id }, { $set, $setOnInsert: { venue_id: id } }, { upsert: true, returnDocument: 'after' }).lean();
-  res.json({ login: a!.login, active: a!.active, last_login_at: a!.last_login_at ?? null });
+  res.json({ login: a!.login, active: a!.active, phone: a!.phone ?? '', name: a!.name ?? '', last_login_at: a!.last_login_at ?? null });
+});
+
+
+/* ═══ "YANGI TO'YXONA" ARIZALARI (mobil ilovadan keladi) ═══ */
+adminRouter.get('/applications', async (req, res) => {
+  const f = parse(z.object({ status: z.enum(['new', 'contacted', 'approved', 'rejected']).optional(), limit: z.coerce.number().int().min(1).max(200).default(100) }), req.query);
+  res.json(await VenueApplicationModel.find(f.status ? { status: f.status } : {}).sort({ createdAt: -1 }).limit(f.limit).lean());
+});
+adminRouter.patch('/applications/:id', async (req, res) => {
+  const { id } = parse(z.object({ id: objectId }), req.params);
+  const b = parse(z.object({ status: z.enum(['new', 'contacted', 'approved', 'rejected']).optional(), admin_note: z.string().max(1000).optional() }), req.body);
+  const a = await VenueApplicationModel.findByIdAndUpdate(id, { $set: b }, { returnDocument: 'after' }).lean();
+  if (!a) throw notFound('Ariza topilmadi');
+  res.json(a);
 });

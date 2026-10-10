@@ -153,7 +153,7 @@ describe('to‘yxona sahifasi va kalendar', () => {
     assert.equal(r.body.message, 'To‘yxona topilmadi');
   });
 
-  test('oylik kalendar: har kun 3 seans, o‘tgan kunlar closed', async () => {
+  test('oylik kalendar: har kun 4 seans (3 + maxsus), o‘tgan kunlar closed', async () => {
     const v = await venueCtx();
     const month = todayISO().slice(0, 7);
     const r = await get(`/api/halls/${v.halls[0].id}/calendar?month=${month}`);
@@ -161,7 +161,8 @@ describe('to‘yxona sahifasi va kalendar', () => {
     const [y, m] = month.split('-').map(Number);
     assert.equal(r.body.length, new Date(Date.UTC(y, m, 0)).getUTCDate());
     for (const d of r.body) {
-      assert.deepEqual(Object.keys(d.sessions).sort(), ['day', 'evening', 'morning']);
+      // 3 asosiy seans + maxsus tadbir (lib/sessions.ts)
+      assert.deepEqual(Object.keys(d.sessions).sort(), ['day', 'evening', 'morning', 'special']);
       if (d.date < todayISO()) assert.equal(d.sessions.evening, 'closed');
     }
     assert.equal((await get(`/api/halls/${v.halls[0].id}/calendar?month=2026-13`)).status, 422);

@@ -15,6 +15,7 @@ import {
 } from './owner.models.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { cancelBookingByPhone, listBookingsByPhone } from '../bookings/booking.service.js';
+import { claimSlot, releaseSlot } from './owner.slots.js';
 
 /*
  * ═══ TO'YXONA EGASI — CRM API ═══
@@ -155,25 +156,6 @@ const reservationIn = z.object({
   payments: z.array(paymentIn).max(50).default([]),
   description: z.string().max(2000).default(''),
 });
-
-/** Seans tanlangan zal/sana uchun bo'shmi — ilova broni yoki boshqa yozuv bo'lsa 409 */
-async function claimSlot(venueId: Types.ObjectId, hallId: Types.ObjectId, date: string, session: SessionCodeAll, reservationId: Types.ObjectId, note: string, status: 'booked' | 'closed') {
-  const filter = { hall_id: hallId, date, session };
-  const existing = await SlotModel.findOne(filter).lean();
-  if (existing) {
-    const liveHold = existing.status === 'hold' && existing.hold_until && existing.hold_until > new Date();
-    if (existing.booking_id && (existing.status === 'booked' || liveHold)) throw conflict('Bu seansda ilova orqali bron bor', 'has_booking');
-    if (existing.reservation_id && String(existing.reservation_id) !== String(reservationId)) throw conflict('Bu seans allaqachon band', 'slot_taken');
-  }
-  await SlotModel.updateOne(
-    filter,
-    { $set: { venue_id: venueId, status, note, reservation_id: reservationId }, $unset: { hold_until: 1, booking_id: 1 } },
-    { upsert: true },
-  );
-}
-async function releaseSlot(hallId: Types.ObjectId, date: string, session: SessionCodeAll, reservationId: Types.ObjectId) {
-  await SlotModel.deleteOne({ hall_id: hallId, date, session, reservation_id: reservationId });
-}
 
 function checkHall(req: OwnerReq, hallId: string) {
   const hall = req.venue!.halls.find((h) => String(h._id) === hallId);

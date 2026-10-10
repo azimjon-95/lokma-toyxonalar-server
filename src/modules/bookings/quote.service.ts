@@ -40,6 +40,10 @@ export async function buildQuote(input: QuoteInput) {
     throw badRequest(`Mehmonlar soni ${minGuests} – ${hall.capacity_max} oralig‘ida bo‘lishi kerak`, { min: minGuests, max: hall.capacity_max });
   }
 
+  if (menu.min_guests && input.guests < menu.min_guests) {
+    throw badRequest(`${menu.name} menyusi kamida ${menu.min_guests} mehmon uchun`, { min: menu.min_guests });
+  }
+
   const vendorIds = [...new Set(input.vendor_ids)];
   const available = await vendorsFor(venue._id);
   const vendors = vendorIds.map((id) => {

@@ -23,6 +23,27 @@ const schema = z.object({
   BOOKING_RATE_LIMIT: z.coerce.number().int().positive().default(10),
   /** Bitta IP dan daqiqada umumiy so'rovlar */
   API_RATE_LIMIT: z.coerce.number().int().positive().default(300),
+  /** Egasi/xodim mobil ilovasi tokeni muddati */
+  OWNER_TOKEN_EXPIRES_IN: z.string().default('30d'),
+
+  /* ── Cloudinary: to'yxona, taom va menyu rasmlari ──
+   * Ilova rasmni to'g'ridan-to'g'ri Cloudinary'ga yuklaydi (server imzo beradi), server esa
+   * faqat public_id'ni ro'yxatdan o'tkazadi. Sozlanmasa rasm yuklash 503 qaytaradi. */
+  CLOUDINARY_CLOUD_NAME: z.string().default(''),
+  CLOUDINARY_API_KEY: z.string().default(''),
+  CLOUDINARY_API_SECRET: z.string().default(''),
+  /** Cloudinary'dagi ildiz papka: <folder>/venues/<venueId>/... */
+  CLOUDINARY_FOLDER: z.string().regex(/^[a-z0-9_-]+$/i).default('lokma-toyxonalar'),
+  /** Yuklangan rasm haqiqatan mavjudligini Admin API orqali tekshirish: auto = kalitlar bo'lsa */
+  CLOUDINARY_VERIFY: z.enum(['auto', 'true', 'false']).default('auto'),
+
+  /* ── SMS (parolni tiklash kodi) ── */
+  SMS_PROVIDER: z.enum(['none', 'eskiz']).default('none'),
+  ESKIZ_EMAIL: z.string().default(''),
+  ESKIZ_PASSWORD: z.string().default(''),
+  ESKIZ_FROM: z.string().default('4546'),
+  SMS_TEMPLATE: z.string().default('Lokma To‘yxonalar: tasdiqlash kodi {code}. Uni hech kimga bermang.'),
+
   ALLOW_ANONYMOUS_BOOKING: z
     .enum(['true', 'false'])
     .default('true')

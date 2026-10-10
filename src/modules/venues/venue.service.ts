@@ -4,6 +4,7 @@ import { VenueModel, type Venue } from './venue.model.js';
 import { VendorModel } from '../vendors/vendor.model.js';
 import { loadBusy, statusOf, type BusyMap } from '../slots/slot.service.js';
 import { addDaysISO, todayISO, SESSION_PREFERENCE, type SessionCode } from '../../lib/dates.js';
+import { resizeUrl } from '../cloudinary/cloudinary.service.js';
 import { boundingBox, distanceKm, type LatLng } from '../../lib/geo.js';
 import { priceRange } from '../../lib/pricing.js';
 import { notFound } from '../../lib/http-error.js';
@@ -55,7 +56,7 @@ function toListItem(v: LeanVenue, from: LatLng, nextFree: { date: string; sessio
     lng: v.lng,
     rating: v.rating,
     reviews_count: v.reviews_count,
-    photos: v.photos.slice(0, 3),
+    photos: v.photos.slice(0, 3).map((u) => resizeUrl(u, 'card')),
     photos_count: v.photos.length,
     capacity_min: Math.min(...v.halls.map((h) => h.capacity_min)),
     capacity_max: Math.max(...v.halls.map((h) => h.capacity_max)),
@@ -169,7 +170,7 @@ export async function venueDetail(slug: string, from: LatLng) {
       code: s.code, start_time: s.start_time, end_time: s.end_time,
       event_types: s.event_types, price_factor: s.price_factor, min_guests: s.min_guests,
     })),
-    menu_packages: v.menu_packages.map((m) => ({ id: String(m._id), name: m.name, items_text: m.items_text, price_per_guest: m.price_per_guest })),
+    menu_packages: v.menu_packages.map((m) => ({ id: String(m._id), name: m.name, items_text: m.items_text, price_per_guest: m.price_per_guest, min_guests: m.min_guests ?? 0 })),
     vendors: await vendorsFor(v._id),
     weekend_factor: v.weekend_factor,
     deposit_percent: v.deposit_percent,

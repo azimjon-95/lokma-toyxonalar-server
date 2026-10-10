@@ -77,6 +77,11 @@ To'liq shartnoma: ilova reposidagi `docs/API.md`. Qisqacha:
 LokmaGo admin paneli bu API'ga **to'g'ridan-to'g'ri emas**, lokmago-server orqali ulanadi
 (`/api/admin/wedding/*` → shu server, `X-Admin-Key` brauzerga chiqmaydi).
 
+**To'yxona egasi / xodim mobil ilovasi** ([lokma-toyxona-owner](https://github.com/azimjon-95/lokma-toyxona-owner)) —
+alohida token bilan ishlaydigan `/api/owner-app` yuzasi: bronlar (egasi + Lokma), to'lovlar, mijozlar, moliya, menyu/taomlar,
+xodimlar, **Cloudinary rasmlari**, parolni SMS bilan tiklash, yangi to'yxona arizasi. To'liq shartnoma: [`docs/OWNER_APP_API.md`](docs/OWNER_APP_API.md).
+Xodim roli pulni ko'rmaydi — pul maydonlari serverdan umuman chiqmaydi.
+
 ## Muhim qoidalar
 
 - **Bitta seans — bitta bron.** `slots` kolleksiyasida `(hall_id, date, session)` unique indeks:
@@ -104,7 +109,7 @@ src/
     auth/                          Telegram initData, JWT, admin kaliti
     admin/  health/
   scripts/seed.ts                  demo ma'lumot
-test/api.test.ts                   21 ta integratsion test
+test/api.test.ts, owner-app.test.ts   59 ta integratsion test
 ```
 
 ## Keyingi bosqich

@@ -16,6 +16,7 @@ import type { Server } from 'node:http';
 
 const { createApp } = await import('../src/app.js');
 const { connectDatabase, disconnectDatabase } = await import('../src/infrastructure/mongo.js');
+const { initCache, closeCache } = await import('../src/infrastructure/cache.js');
 const { seed, DEMO } = await import('../src/scripts/seed.js');
 const { SlotModel } = await import('../src/modules/slots/slot.model.js');
 const { ReservationModel } = await import('../src/modules/owner/owner.models.js');
@@ -74,6 +75,7 @@ setCloudinaryFetch(async (url, init) => {
 });
 
 before(async () => {
+  await initCache(); // REDIS_URL berilsa — haqiqiy Redis bilan, aks holda xotira keshi
   await connectDatabase();
   await SlotModel.syncIndexes();
   await ReservationModel.syncIndexes();
@@ -89,7 +91,7 @@ before(async () => {
   hall0 = me.venue.halls[0].id; hall1 = me.venue.halls[1].id;
   menuId = (await get(`${API}/menus`, O)).body[1].id;
 });
-after(async () => { server?.close(); await disconnectDatabase(); });
+after(async () => { server?.close(); await closeCache(); await disconnectDatabase(); });
 
 const newBooking = (over: Record<string, unknown> = {}) => ({
   hall_id: hall0, date: nextDate(), session: 'evening', event_type: 'kechki', customer_name: 'Test Mijoz', customer_phone: '+998 90 111 22 33',

@@ -67,7 +67,9 @@ export function toPublic(b: BookingDoc) {
 }
 
 export async function createBooking(input: BookingInput, userId?: string) {
-  const { quote, venue, hall, session, menu } = await buildQuote(input);
+  const { quote, venue, hall, session, menu } = await buildQuote(input, { fresh: true });
+  const venueOid = new Types.ObjectId(String(venue._id));
+  const hallOid = new Types.ObjectId(String(hall._id));
   if (!session.event_types.includes(input.event_type)) {
     throw badRequest('Bu seansda tanlangan tadbir turini o‘tkazib bo‘lmaydi');
   }
@@ -76,7 +78,7 @@ export async function createBooking(input: BookingInput, userId?: string) {
   const holdUntil = new Date(Date.now() + env.HOLD_MINUTES * 60_000);
 
   // 1) Avval seansni band qilamiz (unique indeks poygani hal qiladi)
-  await reserveHold({ venueId: venue._id, hallId: hall._id, date: input.date, session: input.session, bookingId: _id, holdUntil });
+  await reserveHold({ venueId: venueOid, hallId: hallOid, date: input.date, session: input.session, bookingId: _id, holdUntil });
 
   // 2) Keyin bronni yozamiz; xato bo'lsa seansni bo'shatamiz
   try {
@@ -89,9 +91,9 @@ export async function createBooking(input: BookingInput, userId?: string) {
           user_id: userId ? new Types.ObjectId(userId) : undefined,
           customer_name: input.customer_name,
           customer_phone: input.customer_phone,
-          venue_id: venue._id,
+          venue_id: venueOid,
           venue_name: venue.name,
-          hall_id: hall._id,
+          hall_id: hallOid,
           hall_name: hall.name,
           date: input.date,
           session: input.session,

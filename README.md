@@ -82,6 +82,21 @@ alohida token bilan ishlaydigan `/api/owner-app` yuzasi: bronlar (egasi + Lokma)
 xodimlar, **Cloudinary rasmlari**, parolni SMS bilan tiklash, yangi to'yxona arizasi. To'liq shartnoma: [`docs/OWNER_APP_API.md`](docs/OWNER_APP_API.md).
 Xodim roli pulni ko'rmaydi — pul maydonlari serverdan umuman chiqmaydi.
 
+## Кэш (Redis) и скорость
+
+Публичные эндпоинты (`/api/venues`, `/api/venues/:slug`, `/api/venues/free-soon`, `/api/halls/:id/calendar`) отдаются из кэша:
+**L1** — память процесса (микросекунды), **L2** — Redis (общий для всех инстансов). Без `REDIS_URL` работает L1.
+
+- **Снимки:** все активные заведения, услуги и занятые сеансы на 30 дней хранятся как компактные снимки; расстояние, фильтры,
+  сортировка и «ближайший свободный день» считаются в памяти, без запросов в Mongo.
+- **Инвалидация:** любая запись в `Venue` / `Vendor` / `Slot` (admin, owner-app, бронь, cron) увеличивает версию ключей —
+  `infrastructure/cache-invalidation.ts`. Старые ключи «исчезают» сами, SCAN/DEL не нужны. Версия монотонна и переживает падение Redis.
+- **SWR:** устаревшее значение отдаётся сразу, обновление идёт в фоне; одновременные промахи схлопываются в один запрос (single-flight).
+- **Отказоустойчивость:** Redis недоступен — запросы не падают (L1 + загрузка из Mongo), `/api/health/ready` показывает статус кэша.
+- **Бронь** всегда считает цену по свежим данным из базы (`findVenue(..., { fresh: true })`), не из кэша.
+- **HTTP:** ответы с ETag (304), `Cache-Control: no-cache` (без `max-age`, чтобы клиент после своей брони не видел старый календарь), `Server-Timing`.
+- Ручной сброс: `POST /api/admin/cache/flush` (X-Admin-Key). Бенчмарк: `npm run bench` (отдельная база `lokma_bench`).
+
 ## Muhim qoidalar
 
 - **Bitta seans — bitta bron.** `slots` kolleksiyasida `(hall_id, date, session)` unique indeks:

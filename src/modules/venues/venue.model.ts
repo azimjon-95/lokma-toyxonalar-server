@@ -1,5 +1,6 @@
 import { SESSION_CODES, EVENT_TYPES, PRICING_MODES } from '../../lib/sessions.js';
 import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
+import { invalidateOn } from '../../infrastructure/cache-invalidation.js';
 
 const hallSchema = new Schema(
   {
@@ -119,4 +120,7 @@ venueSchema.index({ lat: 1, lng: 1 });
 
 export type Venue = InferSchemaType<typeof venueSchema>;
 export type VenueDoc = HydratedDocument<Venue>;
+// To'yxona profili, narx, menyu, rasm o'zgarsa — to'yxona keshi (ro'yxat, sahifa, narx) darhol eskiradi
+invalidateOn(venueSchema, 'venues');
+
 export const VenueModel = model('Venue', venueSchema);

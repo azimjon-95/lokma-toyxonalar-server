@@ -39,6 +39,17 @@ export function createApp() {
     });
   }
 
+  // Server-Timing: brauzer DevTools'da har so'rovning server vaqti ko'rinadi
+  app.use('/api', (_req, res, next) => {
+    const t0 = process.hrtime.bigint();
+    const writeHead = res.writeHead.bind(res) as (...a: unknown[]) => Response;
+    (res as unknown as { writeHead: (...a: unknown[]) => Response }).writeHead = (...a: unknown[]) => {
+      if (!res.headersSent) res.setHeader('Server-Timing', `app;dur=${(Number(process.hrtime.bigint() - t0) / 1e6).toFixed(1)}`);
+      return writeHead(...a);
+    };
+    next();
+  });
+
   app.use('/api/health', healthRouter);
   app.use(
     '/api',

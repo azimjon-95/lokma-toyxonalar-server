@@ -44,6 +44,13 @@ const schema = z.object({
   ESKIZ_FROM: z.string().default('4546'),
   SMS_TEMPLATE: z.string().default('Lokma To‘yxonalar: tasdiqlash kodi {code}. Uni hech kimga bermang.'),
 
+  /* ── Kesh (Redis) ──
+   * REDIS_URL bo'sh bo'lsa — jarayon ichidagi xotira keshi (bitta instance uchun yetarli, tezlik shu bilan ham ancha oshadi).
+   * Redis bo'lsa — barcha instance'lar umumiy keshdan foydalanadi va bekor qilish hammasiga bir zumda yetadi. */
+  REDIS_URL: z.string().default(''),
+  CACHE_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  CACHE_PREFIX: z.string().regex(/^[a-z0-9:_-]+$/i).default('lokma'),
+
   ALLOW_ANONYMOUS_BOOKING: z
     .enum(['true', 'false'])
     .default('true')

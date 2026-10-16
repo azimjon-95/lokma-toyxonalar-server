@@ -8,6 +8,7 @@ import { DishModel, PasswordResetModel, VenueApplicationModel } from '../modules
 import { hashPassword } from '../modules/owner/password.js';
 import { addDaysISO, todayISO } from '../lib/dates.js';
 import { VENUES, VENDORS } from './seed-data.js';
+import { flushAll } from '../infrastructure/cache.js';
 
 /** Demo hisoblar (ilovaga kirish): production'da faqat SEED_DEMO_ACCOUNTS=true bo'lsa */
 export const DEMO = {
@@ -86,6 +87,7 @@ export async function seed({ fresh = false, demoAccounts = process.env.NODE_ENV 
     await VendorModel.updateOne({ type: x.type, name: x.name }, { $setOnInsert: { ...x, venue_ids: [] } }, { upsert: true });
   }
   if (demoAccounts) await seedOwnerDemo();
+  flushAll(); // to'g'ridan-to'g'ri yozuvlardan keyin ham kesh eskirsin
   return { venues: await VenueModel.countDocuments(), vendors: await VendorModel.countDocuments() };
 }
 

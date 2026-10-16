@@ -13,6 +13,7 @@ import type { Server } from 'node:http';
 
 const { createApp } = await import('../src/app.js');
 const { connectDatabase, disconnectDatabase } = await import('../src/infrastructure/mongo.js');
+const { initCache, closeCache } = await import('../src/infrastructure/cache.js');
 const { seed } = await import('../src/scripts/seed.js');
 const { SlotModel } = await import('../src/modules/slots/slot.model.js');
 const { BookingModel } = await import('../src/modules/bookings/booking.model.js');
@@ -38,6 +39,7 @@ const get = (p: string, h?: Record<string, string>) => call('GET', p, undefined,
 const post = (p: string, b?: unknown, h?: Record<string, string>) => call('POST', p, b, h);
 
 before(async () => {
+  await initCache(); // REDIS_URL berilsa — haqiqiy Redis bilan, aks holda xotira keshi
   await connectDatabase();
   await SlotModel.syncIndexes();
   await seed({ fresh: true });
@@ -48,6 +50,7 @@ before(async () => {
 
 after(async () => {
   server?.close();
+  await closeCache();
   await disconnectDatabase();
 });
 

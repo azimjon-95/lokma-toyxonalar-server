@@ -18,9 +18,17 @@ import { VenueAccountModel } from '../owner/owner.models.js';
 import { hashPassword } from '../owner/password.js';
 import { normalizePhone } from '../../lib/phone.js';
 import { VenueApplicationModel } from '../owner-app/owner-app.models.js';
+import { flushAll, warmAll } from '../../infrastructure/cache.js';
 
 export const adminRouter = Router();
 adminRouter.use(requireAdmin);
+
+/** Keshni qo'lda tozalash (masalan, bazaga to'g'ridan-to'g'ri yozilgandan keyin) va qayta isitish */
+adminRouter.post('/cache/flush', async (_req, res) => {
+  flushAll();
+  await warmAll();
+  res.json({ ok: true });
+});
 
 const eventType = z.enum(EVENT_TYPES);
 const venueSchema = z.object({

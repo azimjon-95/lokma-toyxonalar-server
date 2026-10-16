@@ -17,8 +17,9 @@ export interface QuoteInput {
 export const MAX_DAYS_AHEAD = 400;
 
 /** Barcha qiymatlar serverda qayta hisoblanadi — mijoz yuborgan narxga ishonilmaydi */
-export async function buildQuote(input: QuoteInput) {
-  const venue = await findVenue(input.venue_id);
+/** fresh: true — bron yaratishda to'yxona to'g'ridan-to'g'ri bazadan o'qiladi (narx eng yangi ma'lumot bilan) */
+export async function buildQuote(input: QuoteInput, opts: { fresh?: boolean } = {}) {
+  const venue = await findVenue(input.venue_id, opts);
   const hall = venue.halls.find((h) => String(h._id) === input.hall_id);
   if (!hall) throw badRequest('Zal topilmadi');
   const session = venue.sessions.find((s) => s.code === input.session);

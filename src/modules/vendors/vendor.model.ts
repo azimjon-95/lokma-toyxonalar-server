@@ -1,4 +1,5 @@
 import { Schema, model, type InferSchemaType } from 'mongoose';
+import { invalidateOn } from '../../infrastructure/cache-invalidation.js';
 
 const vendorSchema = new Schema(
   {
@@ -54,4 +55,6 @@ const vendorSchema = new Schema(
 );
 
 export type Vendor = InferSchemaType<typeof vendorSchema>;
+invalidateOn(vendorSchema, 'venues'); // xizmatlar to'yxona sahifasida ko'rinadi
+
 export const VendorModel = model('Vendor', vendorSchema);

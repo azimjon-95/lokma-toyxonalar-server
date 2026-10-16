@@ -2,15 +2,29 @@ import type { EventTypeAll } from '../../lib/sessions.js';
 import { Types } from 'mongoose';
 import { VenueModel, type Venue } from './venue.model.js';
 import { VendorModel } from '../vendors/vendor.model.js';
-import { loadBusy, statusOf, type BusyMap } from '../slots/slot.service.js';
+import { BUSY_WINDOW_DAYS, busyMap, statusOf, type BusyMap } from '../slots/slot.service.js';
+import { cached, registerWarmer } from '../../infrastructure/cache.js';
 import { addDaysISO, todayISO, SESSION_PREFERENCE, type SessionCode } from '../../lib/dates.js';
 import { resizeUrl } from '../cloudinary/cloudinary.service.js';
 import { boundingBox, distanceKm, type LatLng } from '../../lib/geo.js';
 import { priceRange } from '../../lib/pricing.js';
 import { notFound } from '../../lib/http-error.js';
 
-const NEXT_FREE_DAYS = 30;
-type LeanVenue = Venue & { _id: Types.ObjectId };
+const NEXT_FREE_DAYS = BUSY_WINDOW_DAYS;
+/** Keshdagi to'yxona: JSON orqali o'tgani uchun _id — satr */
+type LeanVenue = Venue & { _id: string };
+const toLean = (rows: unknown) => JSON.parse(JSON.stringify(rows)) as LeanVenue[];
+
+/*
+ * ── To'yxona snapshot'i ──
+ * Faol to'yxonalarning hammasi bitta ro'yxat sifatida keshlanadi. Masofa, filtr, saralash, narx oralig'i va "bo'sh kun"
+ * so'rov paytida XOTIRADA hisoblanadi — bazaga bormaydi. To'yxona/xizmat o'zgarsa kesh darhol yangilanadi
+ * (model hook'lari, infrastructure/cache-invalidation.ts).
+ */
+export function activeVenues(): Promise<LeanVenue[]> {
+  return cached('venues:active', '', { ttl: 120, swr: 900 }, async () => toLean(await VenueModel.find({ status: 'active' }).lean()));
+}
+registerWarmer('venues', activeVenues);
 
 export type QuickFilter = 'all' | 'free_today' | 'cheap' | 'big' | 'parking';
 export type SortKey = 'distance' | 'price_asc' | 'price_desc' | 'rating';
@@ -45,7 +59,35 @@ function firstFree(v: LeanVenue, busy: BusyMap, from: string, days: number, sess
   return null;
 }
 
-function toListItem(v: LeanVenue, from: LatLng, nextFree: { date: string; session: SessionCode } | null) {
+/*
+ * Foydalanuvchi joylashuviga BOG'LIQ BO'LMAGAN qismlar bir marta hisoblanadi va snapshot obyektiga bog'lab saqlanadi
+ * (WeakMap: snapshot almashsa o'zi yo'qoladi). So'rov paytida faqat masofa, filtr va saralash qoladi.
+ */
+const staticMemo = new WeakMap<LeanVenue, ReturnType<typeof buildStatic>>();
+function staticItem(v: LeanVenue) {
+  let m = staticMemo.get(v);
+  if (!m) { m = buildStatic(v); staticMemo.set(v, m); }
+  return m;
+}
+
+type NextFree = { date: string; session: SessionCode } | null;
+const nextFreeMemo = new WeakMap<BusyMap, Map<string, NextFree>>();
+/** Bandlik xaritasi (har ~2 s da yangilanadi) uchun to'yxonaning "keyingi bo'sh seans"i — bir marta hisoblanadi */
+function nextFreeCached(v: LeanVenue, busy: BusyMap, days: number, sessions: SessionCode[], eventType?: EventType): NextFree {
+  let m = nextFreeMemo.get(busy);
+  if (!m) { m = new Map(); nextFreeMemo.set(busy, m); }
+  const k = `${v._id}|${eventType ?? ''}|${days}`;
+  if (m.has(k)) return m.get(k)!;
+  const r = sessions.length ? firstFree(v, busy, todayISO(), days, sessions) : null;
+  m.set(k, r);
+  return r;
+}
+
+function toListItem(v: LeanVenue, from: LatLng, nextFree: NextFree) {
+  return { ...staticItem(v), next_free: nextFree, distance_km: Math.round(distanceKm(from, v) * 10) / 10 };
+}
+
+function buildStatic(v: LeanVenue) {
   const range = priceRange(v.menu_packages, v.sessions, v.weekend_factor);
   return {
     id: String(v._id),
@@ -63,20 +105,14 @@ function toListItem(v: LeanVenue, from: LatLng, nextFree: { date: string; sessio
     price_from: range.from,
     price_to: range.to,
     has_parking: v.parking_spots > 0,
-    next_free: nextFree,
-    distance_km: Math.round(distanceKm(from, v) * 10) / 10,
   };
 }
 export type VenueListItem = ReturnType<typeof toListItem>;
 
 async function venuesWithin(q: LatLng & { radius_km: number }) {
   const box = boundingBox(q, q.radius_km);
-  const rows = (await VenueModel.find({
-    status: 'active',
-    lat: { $gte: box.minLat, $lte: box.maxLat },
-    lng: { $gte: box.minLng, $lte: box.maxLng },
-  }).lean()) as LeanVenue[];
-  return rows.filter((v) => distanceKm(q, v) <= q.radius_km);
+  const rows = await activeVenues();
+  return rows.filter((v) => v.lat >= box.minLat && v.lat <= box.maxLat && v.lng >= box.minLng && v.lng <= box.maxLng && distanceKm(q, v) <= q.radius_km);
 }
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -88,12 +124,12 @@ export async function listVenues(q: VenueQuery): Promise<VenueListItem[]> {
     venues = venues.filter((v) => re.test(v.name) || re.test(v.district));
   }
   const today = todayISO();
-  const busy = await loadBusy(venues.flatMap(hallIds), today, addDaysISO(today, NEXT_FREE_DAYS));
+  const busy = await busyMap();
 
   let items = venues
     .map((v) => {
       const sessions = sessionsFor(v, q.event_type);
-      return { v, item: toListItem(v, q, sessions.length ? firstFree(v, busy, today, NEXT_FREE_DAYS, sessions) : null) };
+      return { v, item: toListItem(v, q, nextFreeCached(v, busy, NEXT_FREE_DAYS, sessions, q.event_type)) };
     })
     .filter(({ item }) => !q.event_type || item.next_free !== null)
     .map(({ item }) => item);
@@ -117,12 +153,12 @@ export async function listVenues(q: VenueQuery): Promise<VenueListItem[]> {
 export async function freeSoon(q: LatLng & { radius_km: number; days: number; limit?: number }) {
   const venues = await venuesWithin(q);
   const today = todayISO();
-  const busy = await loadBusy(venues.flatMap(hallIds), today, addDaysISO(today, q.days));
+  const busy = await busyMap();
   const out: { venue: VenueListItem; date: string; session: SessionCode }[] = [];
   for (const v of venues) {
-    const slot = firstFree(v, busy, today, q.days, sessionsFor(v));
+    const slot = nextFreeCached(v, busy, q.days, sessionsFor(v));
     if (!slot) continue;
-    const next = firstFree(v, busy, today, NEXT_FREE_DAYS, sessionsFor(v));
+    const next = nextFreeCached(v, busy, NEXT_FREE_DAYS, sessionsFor(v));
     out.push({ venue: toListItem(v, q, next), ...slot });
   }
   return out
@@ -130,16 +166,29 @@ export async function freeSoon(q: LatLng & { radius_km: number; days: number; li
     .slice(0, q.limit ?? 6);
 }
 
-export async function findVenue(idOrSlug: string): Promise<LeanVenue> {
-  const filter = Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24 ? { _id: idOrSlug } : { slug: idOrSlug.toLowerCase() };
-  const v = (await VenueModel.findOne({ ...filter, status: 'active' }).lean()) as LeanVenue | null;
+/**
+ * To'yxonani topish. Odatda keshdan (tez); `fresh: true` — to'g'ridan-to'g'ri bazadan
+ * (bron yaratishda narx har doim eng yangi ma'lumot bilan hisoblansin).
+ */
+export async function findVenue(idOrSlug: string, opts: { fresh?: boolean } = {}): Promise<LeanVenue> {
+  const isId = Types.ObjectId.isValid(idOrSlug) && idOrSlug.length === 24;
+  if (!opts.fresh) {
+    const hit = (await activeVenues()).find((v) => (isId ? v._id === idOrSlug : v.slug === idOrSlug.toLowerCase()));
+    if (hit) return hit;
+  }
+  const filter = isId ? { _id: idOrSlug } : { slug: idOrSlug.toLowerCase() };
+  const v = await VenueModel.findOne({ ...filter, status: 'active' }).lean();
   if (!v) throw notFound('To‘yxona topilmadi');
-  return v;
+  return toLean([v])[0];
 }
 
-export async function vendorsFor(venueId: Types.ObjectId) {
+const activeVendors = () => cached('vendors:active', '', { ttl: 300, swr: 1800 }, async () => JSON.parse(JSON.stringify(await VendorModel.find({ active: true }).sort({ type: 1, price: 1 }).lean())) as Awaited<ReturnType<typeof loadVendors>>);
+const loadVendors = () => VendorModel.find({ active: true }).sort({ type: 1, price: 1 }).lean();
+registerWarmer('vendors', activeVendors);
+
+export async function vendorsFor(venueId: Types.ObjectId | string) {
   // Xizmatlar soni kichik — barcha bazalarda bir xil ishlashi uchun filtr kodda
-  const all = await VendorModel.find({ active: true }).sort({ type: 1, price: 1 }).lean();
+  const all = await activeVendors();
   const rows = all.filter((x) => !x.venue_ids?.length || x.venue_ids.some((id) => String(id) === String(venueId)));
   return rows.map((x) => ({
     id: String(x._id),
@@ -155,8 +204,8 @@ export async function vendorsFor(venueId: Types.ObjectId) {
 export async function venueDetail(slug: string, from: LatLng) {
   const v = await findVenue(slug);
   const today = todayISO();
-  const busy = await loadBusy(hallIds(v), today, addDaysISO(today, NEXT_FREE_DAYS));
-  const base = toListItem(v, from, firstFree(v, busy, today, NEXT_FREE_DAYS, sessionsFor(v)));
+  const busy = await busyMap();
+  const base = toListItem(v, from, nextFreeCached(v, busy, NEXT_FREE_DAYS, sessionsFor(v)));
   return {
     ...base,
     photos: v.photos,

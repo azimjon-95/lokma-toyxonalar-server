@@ -4,12 +4,18 @@ import { z } from 'zod';
 import { lat, lng, objectId, parse } from '../../lib/validate.js';
 import { ISO_MONTH } from '../../lib/dates.js';
 import { notFound } from '../../lib/http-error.js';
-import { freeSoon, listVenues, venueDetail } from './venue.service.js';
-import { VenueModel } from './venue.model.js';
+import { activeVenues, freeSoon, listVenues, venueDetail } from './venue.service.js';
 import { hallCalendar } from '../slots/slot.service.js';
 
 export const venueRouter = Router();
 export const hallRouter = Router();
+
+/*
+ * HTTP kesh: javob ETag bilan keladi, brauzer har safar "o'zgardimi?" deb so'raydi (o'zgarmasa 304 — tanasiz).
+ * max-age ataylab YO'Q: mijoz o'zi bron qilgandan keyin eski kalendar ko'rinib qolmasin. Tezlikni server keshi (Redis) beradi.
+ */
+venueRouter.use((_req, res, next) => { res.set('Cache-Control', 'no-cache'); next(); });
+hallRouter.use((_req, res, next) => { res.set('Cache-Control', 'no-cache'); next(); });
 
 // 1000 km — "Butun O'zbekiston" tanlovi (wedding ilovasi, src/lib/regions.ts)
 const radius = z.coerce.number().min(1).max(1000).default(20);
@@ -44,7 +50,7 @@ venueRouter.get('/:slug', async (req, res) => {
 hallRouter.get('/:hallId/calendar', async (req, res) => {
   const { hallId } = parse(z.object({ hallId: objectId }), req.params);
   const { month } = parse(z.object({ month: z.string().regex(ISO_MONTH, 'Format: YYYY-MM') }), req.query);
-  const exists = await VenueModel.exists({ 'halls._id': hallId, status: 'active' });
+  const exists = (await activeVenues()).some((v) => v.halls.some((h) => String(h._id) === hallId));
   if (!exists) throw notFound('Zal topilmadi');
   res.json(await hallCalendar(hallId, month));
 });

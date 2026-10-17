@@ -16,6 +16,7 @@ import {
 import { hashPassword, verifyPassword } from './password.js';
 import { cancelBookingByPhone, listBookingsByPhone } from '../bookings/booking.service.js';
 import { claimSlot, releaseSlot } from './owner.slots.js';
+import { registerInboxRoutes } from './owner.inbox.js';
 
 /*
  * ═══ TO'YXONA EGASI — CRM API ═══
@@ -79,6 +80,9 @@ ownerRouter.use(async (req: OwnerReq, _res: Response, next: NextFunction) => {
 
 const vid = (req: Request) => (req as OwnerReq).venueId!;
 
+// Mijoz bronlari: so'rovlar qutisi, kelishildi / rad etish / avans / tasdiqlash, bildirishnomalar
+registerInboxRoutes(ownerRouter);
+
 ownerRouter.get('/me', async (req: OwnerReq, res) => {
   const v = await VenueModel.findById(req.venueId).lean();
   res.json({
@@ -102,7 +106,7 @@ ownerRouter.get('/calendar', async (req: OwnerReq, res) => {
   const [resv, bookings, slots] = await Promise.all([
     ReservationModel.find({ venue_id: req.venueId, date: { $gte: from, $lte: to } }).lean(),
     BookingModel.find({ venue_id: req.venueId, date: { $gte: from, $lte: to }, status: { $in: ['pending', 'confirmed', 'completed'] } },
-      { number: 1, status: 1, hall_id: 1, date: 1, session: 1, customer_name: 1, customer_phone: 1, guests: 1, total: 1, deposit: 1, event_type: 1, hold_until: 1 }).lean(),
+      { number: 1, status: 1, stage: 1, hall_id: 1, date: 1, session: 1, customer_name: 1, customer_phone: 1, guests: 1, total: 1, agreed_total: 1, deposit: 1, event_type: 1, hold_until: 1, payments: 1 }).lean(),
     SlotModel.find({ venue_id: req.venueId, date: { $gte: from, $lte: to }, status: 'closed', reservation_id: { $exists: false } }, { hall_id: 1, date: 1, session: 1, note: 1 }).lean(),
   ]);
   const now = new Date();
@@ -118,7 +122,11 @@ ownerRouter.get('/calendar', async (req: OwnerReq, res) => {
       .map((b) => ({
         kind: 'booking' as const, id: String(b._id), hall_id: String(b.hall_id), date: b.date, session: b.session,
         status: b.status === 'pending' ? 'tentative' : 'booked', title: b.customer_name, phone: b.customer_phone, guests: b.guests,
-        total: b.total, paid: b.status === 'confirmed' || b.status === 'completed' ? b.deposit : 0, event_type: b.event_type, number: b.number,
+        // Egasi kelishgan jami bo'lsa — o'sha; to'lov yozuvlari bo'lsa — haqiqiy to'langan (aks holda eski avans)
+        stage: b.status === 'pending' ? (b.stage === 'agreed' ? 'agreed' : 'new') : 'confirmed',
+        total: b.agreed_total && b.agreed_total > 0 ? b.agreed_total : b.total,
+        paid: (b.payments?.length ? b.payments.reduce((s, p) => s + (p.kind === 'refund' ? -p.amount : p.amount), 0) : (b.status === 'confirmed' || b.status === 'completed' ? b.deposit : 0)),
+        event_type: b.event_type, number: b.number,
       })),
     ...slots.map((s) => ({
       kind: 'closed' as const, id: String(s._id), hall_id: String(s.hall_id), date: s.date, session: s.session,

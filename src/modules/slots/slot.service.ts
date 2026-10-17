@@ -1,3 +1,4 @@
+import { notifyExpired } from '../owner/owner.notifications.js';
 import { Types } from 'mongoose';
 import { SlotModel } from './slot.model.js';
 import { BookingModel } from '../bookings/booking.model.js';
@@ -128,7 +129,10 @@ export async function releaseExpiredHolds(now = new Date()) {
   const expired = await SlotModel.find({ status: 'hold', hold_until: { $lte: now } }, { _id: 1, booking_id: 1 }).lean();
   if (!expired.length) return 0;
   const bookingIds = expired.map((s) => s.booking_id).filter(Boolean);
-  await BookingModel.updateMany({ _id: { $in: bookingIds }, status: 'pending' }, { $set: { status: 'cancelled', cancel_reason: 'expired' } });
+  // Egasiga xabar berish uchun: aynan hozir "pending" bo'lib bekor bo'layotganlar (yangilashdan OLDIN)
+  const toExpire = (await BookingModel.find({ _id: { $in: bookingIds }, status: 'pending' }, { _id: 1 }).lean()).map((x) => x._id as Types.ObjectId);
+  await BookingModel.updateMany({ _id: { $in: bookingIds }, status: 'pending' }, { $set: { status: 'cancelled', cancel_reason: 'expired', cancelled_by: 'system' }, $push: { timeline: { at: new Date(), kind: 'expired', text: 'Muddat tugadi — seans bo‘shatildi' } } });
+  void notifyExpired(toExpire);
   await SlotModel.deleteMany({ _id: { $in: expired.map((s) => s._id) }, status: 'hold', hold_until: { $lte: now } });
   logger.info('Muddati o‘tgan bronlar bekor qilindi', { count: expired.length });
   return expired.length;

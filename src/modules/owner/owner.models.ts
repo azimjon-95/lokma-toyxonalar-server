@@ -118,6 +118,8 @@ const transactionSchema = new Schema(
     note: { type: String, default: '' },
     employee_id: { type: Schema.Types.ObjectId, ref: 'Employee' },
     employee_name: { type: String },
+    /** Mijoz broni avansidan avtomatik yozilgan kirim (egasi panelidagi "Avans olindi") */
+    booking_id: { type: Schema.Types.ObjectId, ref: 'Booking', index: true, sparse: true },
   },
   { timestamps: true },
 );

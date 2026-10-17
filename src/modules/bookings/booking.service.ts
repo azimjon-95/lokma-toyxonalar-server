@@ -7,6 +7,7 @@ import { markBooked, releaseByBooking, reserveHold } from '../slots/slot.service
 import { env } from '../../config/env.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/http-error.js';
 import { logger } from '../../infrastructure/logger.js';
+import { onBookingCreated } from '../owner/owner.notifications.js';
 
 export interface BookingInput extends QuoteInput {
   event_type: EventTypeAll;
@@ -37,6 +38,10 @@ interface BookingDoc {
   payment_url?: string | null;
   hold_until: Date;
   createdAt?: Date;
+  stage?: 'new' | 'agreed' | null;
+  advance_due?: Date | null;
+  reject_reason?: string | null;
+  cancelled_by?: 'customer' | 'owner' | 'system' | null;
 }
 const asDoc = (x: unknown) => x as BookingDoc;
 
@@ -63,6 +68,11 @@ export function toPublic(b: BookingDoc) {
     hold_until: b.hold_until.toISOString(),
     created_at: (b.createdAt ?? new Date()).toISOString(),
     ...(b.cancel_reason ? { cancel_reason: b.cancel_reason } : {}),
+    // Egasi qarori — mijoz "Bronlarim" da ko'radi: kelishildi (avans muddati) / rad etildi (sabab)
+    stage: b.stage === 'agreed' ? 'agreed' : 'new',
+    ...(b.advance_due ? { advance_due: new Date(b.advance_due).toISOString() } : {}),
+    ...(b.reject_reason ? { reject_reason: b.reject_reason } : {}),
+    ...(b.cancelled_by ? { cancelled_by: b.cancelled_by } : {}),
   };
 }
 
@@ -75,7 +85,8 @@ export async function createBooking(input: BookingInput, userId?: string) {
   }
 
   const _id = new Types.ObjectId();
-  const holdUntil = new Date(Date.now() + env.HOLD_MINUTES * 60_000);
+  // Egasi so'rovni ko'rib chiqishi uchun (avval 30 daqiqa edi): kelishilsa — avans muddatigacha uzaytiriladi
+  const holdUntil = new Date(Date.now() + env.OWNER_REVIEW_HOURS * 3600_000);
 
   // 1) Avval seansni band qilamiz (unique indeks poygani hal qiladi)
   await reserveHold({ venueId: venueOid, hallId: hallOid, date: input.date, session: input.session, bookingId: _id, holdUntil });
@@ -107,8 +118,12 @@ export async function createBooking(input: BookingInput, userId?: string) {
           deposit: quote.deposit,
           payment_url: null, // To'lov provayderi ulanganda shu yerda yaratiladi (Click/Payme/Uzum)
           hold_until: holdUntil,
+          stage: 'new',
+          timeline: [{ at: new Date(), kind: 'created', text: 'Mijoz bron so‘rovini yubordi' }],
         });
         logger.info('Yangi bron', { number: doc.number, venue: venue.slug, date: input.date, session: input.session });
+        // Egasiga bildirishnoma + SMS (asosiy oqimni kutdirmaydi va xatosi bronni buzmaydi)
+        void onBookingCreated(doc.toObject() as never).catch((e) => logger.error('onBookingCreated', { error: String(e) }));
         return toPublic(asDoc(doc.toObject()));
       } catch (e) {
         if ((e as { code?: number }).code === 11000 && attempt < 3) continue; // raqam to'qnashuvi
@@ -137,7 +152,8 @@ export async function cancelBooking(id: string, by: { userId?: string; admin?: b
   const b = await load(id);
   if (!by.admin && String(b.user_id) !== by.userId) throw forbidden();
   if (b.status === 'cancelled' || b.status === 'completed') throw conflict('Bu bronni bekor qilib bo‘lmaydi', 'invalid_state');
-  await BookingModel.updateOne({ _id: b._id }, { $set: { status: 'cancelled', cancel_reason: reason } });
+  const cancelled_by = reason === 'owner' ? 'owner' : reason === 'customer' ? 'customer' : 'system';
+  await BookingModel.updateOne({ _id: b._id }, { $set: { status: 'cancelled', cancel_reason: reason, cancelled_by }, $push: { timeline: { at: new Date(), kind: 'cancelled', text: cancelled_by === 'customer' ? 'Mijoz bronni bekor qildi' : 'Bron bekor qilindi' } } });
   await releaseByBooking(b._id);
   return toPublic({ ...b, status: 'cancelled', cancel_reason: reason });
 }

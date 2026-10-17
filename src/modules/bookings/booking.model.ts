@@ -42,6 +42,26 @@ const bookingSchema = new Schema(
     ],
     staff_ids: [{ type: Schema.Types.ObjectId }],
     notes: { type: String, default: '' },
+
+    /*
+     * EGASI BOSHQARUVI (booking.flow.ts): so'rov → kelishildi → avans → tasdiqlandi / rad etildi.
+     * `stage` faqat status='pending' paytida ma'noga ega; eski bronlarda yo'q — "new" deb olinadi.
+     */
+    stage: { type: String, enum: ['new', 'agreed'], default: 'new' },
+    owner_seen_at: { type: Date },
+    reminded_at: { type: Date },
+    agreed_at: { type: Date },
+    agreed_note: { type: String, default: '' },
+    /** Egasi mijoz bilan kelishgan jami (dastlabkisidan farq qilsa) */
+    agreed_total: { type: Number, min: 0 },
+    /** Avans keltirish muddati (shu paytgacha seans ushlab turiladi) */
+    advance_due: { type: Date },
+    confirmed_at: { type: Date },
+    rejected_at: { type: Date },
+    reject_reason: { type: String, default: '' },
+    cancelled_by: { type: String, enum: ['customer', 'owner', 'system'] },
+    /** Voqealar tarixi (egasi panelida ko'rinadi) */
+    timeline: [new Schema({ at: { type: Date, default: () => new Date() }, kind: String, text: String }, { _id: false })],
   },
   { timestamps: true },
 );

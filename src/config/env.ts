@@ -16,6 +16,14 @@ const schema = z.object({
   ADMIN_API_KEY: z.string().default(''),
   /** Bron qilinganda seans necha daqiqa ushlab turiladi (TZ: 30) */
   HOLD_MINUTES: z.coerce.number().int().positive().default(30),
+  /*
+   * Mijoz bron so'rovi egasi javobini shuncha SOAT kutadi (seans shu vaqt ushlab turiladi).
+   * Egasi "Kelishildi" desa — u tanlagan avans muddatigacha uzaytiriladi. Muddat tugasa so'rov
+   * bekor bo'ladi va seans bo'shaydi. (Avval 30 daqiqa edi — egasi ulgurmasdi.)
+   */
+  OWNER_REVIEW_HOURS: z.coerce.number().int().positive().max(168).default(24),
+  /** Yangi bron so'rovi haqida egasiga SMS (SMS_PROVIDER=eskiz bo'lsagina haqiqatan yuboriladi) */
+  OWNER_BOOKING_SMS: z.enum(['true', 'false']).default('true'),
   /** Sana hisoblash uchun vaqt zonasi */
   TZ_NAME: z.string().default('Asia/Tashkent'),
   /** Telegram'dan kelmagan (oddiy ilova) bronlarga ruxsat */
